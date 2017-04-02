@@ -1,0 +1,64 @@
+---
+title: "machine learning project"
+author: "Lina Wang"
+date: "March 30, 2017"
+output: html_document
+---
+
+## R Markdown
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). The goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.
+
+###Getting and Cleaning the data
+```{r}
+library(caret)
+trainset <- read.csv("trainingset.csv", na.strings=c("NA","#DIV/0!", ""))
+testset <- read.csv("testset.csv", na.strings=c("NA","#DIV/0!", ""))
+dim(trainset)
+plot(trainset$classe, col = "light blue")
+plot(trainset$user_name, col = "light grey")
+
+###split the training set for cross validation###
+set.seed(8316)
+inTrain <- createDataPartition(y=trainset$classe, p=0.75, list=FALSE)
+mytraining <- trainset[inTrain,]
+mytesting <- trainset[-inTrain,]
+dim(mytraining)
+
+###remove unchange variables###
+nearzero <- nearZeroVar(mytraining, saveMetrics = TRUE)
+mytraining1 <- mytraining[, !nearzero$nzv]
+
+###remove varibles with NA greater than 90%###
+varnames <- names(mytraining1)
+newvar <- vector()
+for (i in 1:length(mytraining1)) {if(sum(is.na(mytraining1[,i]))/nrow(mytraining1) < 0.9){newvar <- c(newvar, varnames[i])}} 
+mytraining2 <- mytraining1[, newvar]
+dim(mytraining2)
+
+###remove meaningless predictors###
+mytraining3 <- mytraining2[,-(1:6)]
+dim(mytraining3)
+
+###This is a classification problem, I tested a few models, including decision trees, GBM and Random Forest. Random Forest preformed the best and was included in this file as my final model###
+tran <- trainControl(method = "cv", number = 5, verboseIter = FALSE , allowParallel=TRUE) ###5-fold cross validation included###
+modelrf <- train(classe ~ ., data = mytraining3, method = "rf", trControl= tran)
+modelrf$finalModel ### out of sample error is 0.67%###
+```
+
+###Apply to mytesting set
+```{r} 
+mytesting1 <- mytesting[, newvar]
+mytesting2 <- mytesting1[,-(1:6)]
+mytestpred <- predict(modelrf,mytesting2[,-53])
+
+###Access accuracy
+confusionMatrix(mytestpred, mytesting2$classe)
+```
+
+###Apply to real test set
+```{r}
+testvar <- newvar[-59]
+testset1 <- testset[, testvar]
+testset2 <- testset1[,-(1:6)]
+predict(modelrf,testset2)
+```
